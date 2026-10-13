@@ -1,0 +1,57 @@
+package com.crystal.alarm.presentation.components
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+import com.crystal.alarm.presentation.theme.CrystalColors
+import com.crystal.alarm.presentation.theme.CrystalType
+
+/** Pill-shaped segmented control; the selected option is white on black. */
+@Composable
+fun SegmentedControl(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(CircleShape)
+            .background(CrystalColors.Surface)
+            .padding(4.dp),
+    ) {
+        options.forEachIndexed { index, label ->
+            val selected = index == selectedIndex
+            val container by animateColorAsState(if (selected) CrystalColors.Text else CrystalColors.Surface, label = "segment")
+            val content by animateColorAsState(if (selected) CrystalColors.Background else CrystalColors.TextMuted, label = "segmentText")
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(CircleShape)
+                    .background(container)
+                    .clickable(role = Role.RadioButton) { onSelect(index) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, style = CrystalType.Label, color = content)
+            }
+        }
+    }
+}
