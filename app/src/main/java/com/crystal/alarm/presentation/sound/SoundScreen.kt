@@ -52,6 +52,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.crystal.alarm.R
 import com.crystal.alarm.domain.model.Ringtone
+import com.crystal.alarm.domain.model.RingtoneCategory
 import com.crystal.alarm.domain.model.RingtoneKind
 import com.crystal.alarm.domain.model.SoundSettings
 import com.crystal.alarm.presentation.components.ButtonStyle
@@ -144,24 +145,27 @@ fun SoundScreen(
                 }
             }
 
-            Spacer(Modifier.height(28.dp))
-            SectionLabel(stringResource(R.string.sound_section_ringtones))
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(CardShape)
-                    .background(CrystalColors.Surface),
-            ) {
-                state.ringtones.forEachIndexed { index, ringtone ->
-                    if (index > 0) HorizontalDivider(color = CrystalColors.Background, thickness = 1.dp)
-                    RingtoneRow(
-                        ringtone = ringtone,
-                        selected = ringtone.id == sound.ringtoneId,
-                        previewing = ringtone.id == state.previewingId,
-                        onSelect = { viewModel.onSelect(ringtone) },
-                        onTogglePreview = { viewModel.onTogglePreview(ringtone) },
-                        onDelete = { viewModel.onDelete(ringtone) },
-                    )
+            // One card per category, in RingtoneCategory order.
+            state.ringtones.groupBy { it.category }.toSortedMap().forEach { (category, ringtones) ->
+                Spacer(Modifier.height(28.dp))
+                SectionLabel(stringResource(category.labelRes()))
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(CardShape)
+                        .background(CrystalColors.Surface),
+                ) {
+                    ringtones.forEachIndexed { index, ringtone ->
+                        if (index > 0) HorizontalDivider(color = CrystalColors.Background, thickness = 1.dp)
+                        RingtoneRow(
+                            ringtone = ringtone,
+                            selected = ringtone.id == sound.ringtoneId,
+                            previewing = ringtone.id == state.previewingId,
+                            onSelect = { viewModel.onSelect(ringtone) },
+                            onTogglePreview = { viewModel.onTogglePreview(ringtone) },
+                            onDelete = { viewModel.onDelete(ringtone) },
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -259,4 +263,14 @@ private fun RingtoneRow(
             }
         }
     }
+}
+
+private fun RingtoneCategory.labelRes(): Int = when (this) {
+    RingtoneCategory.Classic -> R.string.ringtone_category_classic
+    RingtoneCategory.Soft -> R.string.ringtone_category_soft
+    RingtoneCategory.Electro -> R.string.ringtone_category_electro
+    RingtoneCategory.Techno -> R.string.ringtone_category_techno
+    RingtoneCategory.FunkPop -> R.string.ringtone_category_funk_pop
+    RingtoneCategory.Phone -> R.string.ringtone_category_phone
+    RingtoneCategory.Mine -> R.string.ringtone_category_mine
 }

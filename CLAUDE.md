@@ -15,7 +15,7 @@ Ces règles sont la raison d'être de l'app. Ne jamais les assouplir sans demand
 5. **Codes nommés** : l'utilisateur enregistre plusieurs codes avec un nom (« Dentifrice », « Café »…). **Un seul est actif** et seul lui arrête l'alarme. Pas de code actif, pas de réveil (`SetAlarmResult.MissingWakeCode`). Pendant la sonnerie on ne peut ni ajouter, ni activer, ni supprimer un code. On ne peut pas supprimer le dernier code si un réveil est programmé.
 6. **Anti-triche** : redémarrer le téléphone pendant la sonnerie la relance, et un réveil raté pendant que le téléphone était éteint sonne au redémarrage (dans la limite de `RestoreAlarmUseCase.MISSED_GRACE`). Le volume d'alarme choisi est réimposé en continu pendant la sonnerie (baisser le son ne sert à rien). Quitter l'écran de sonnerie (accueil, autre appli, écran éteint) le fait revenir toutes les 1,5 s via `RingingScreenKeeper`, tant que ça sonne (nécessite « Afficher par-dessus les autres applis »).
 7. **Pas de répétition** : le réveil sonne une seule fois, puis se désactive (`FinishRingingUseCase`). L'utilisateur le réactive à la main. Pas de jours de la semaine, volontairement.
-8. **Son** (`SoundSettings`) : sonnerie (intégrée, importée ou celle du téléphone), volume de `MIN_VOLUME` (20 %) à 100 %, démarrage direct ou progressif (montée sur `RAMP_SECONDS`), vibreur on/off. Si la sonnerie choisie est illisible, on retombe sur la sonnerie par défaut puis sur celle du système : l'alarme doit **toujours** sonner.
+8. **Son** (`SoundSettings`) : sonnerie (intégrée, importée ou celle du téléphone), volume de `MIN_VOLUME` (20 %) à 100 %, démarrage direct ou progressif (montée sur `RAMP_SECONDS`), vibreur on/off. Si la sonnerie choisie est illisible, on retombe sur la sonnerie par défaut puis sur celle du système : l'alarme doit **toujours** sonner. La sonnerie tourne en boucle sans limite de temps (quelle que soit sa durée) ; un chien de garde dans `AlarmSoundPlayer` la relance si le lecteur s'arrête en cours de route, et bascule sur un bip si plus rien ne peut être lu.
 9. **Activer / désactiver** : désactiver (`CancelAlarmUseCase`) annule le réveil mais garde son heure (`AlarmRepository.lastTime`), tout comme un réveil qui a sonné. `EnableAlarmUseCase` le réactive à la même heure en passant par `SetAlarmUseCase` (mêmes règles). L'éditeur part toujours de la dernière heure. Accueil : interrupteur, et toucher l'heure ouvre l'éditeur. Widget : `--:--` dès que rien n'est actif.
 
 ## Architecture (Clean Architecture)
@@ -60,7 +60,7 @@ Ces règles sont la raison d'être de l'app. Ne jamais les assouplir sans demand
 1. `AndroidAlarmScheduler` arme `AlarmManager.setAlarmClock` → `AlarmReceiver`.
 2. `AlarmReceiver` démarre `AlarmRingingService` (foreground, type `mediaPlayback`).
 3. Le service appelle `StartRingingUseCase` (état → `Ringing`), joue le son, poste la notification full-screen qui ouvre `RingingActivity` (par-dessus l'écran de verrouillage).
-4. Le dismiss (scan ou secours) passe par `FinishRingingUseCase`, qui change l'état et pose le verrou. **Le service et l'activité réagissent au changement d'état** : personne n'appelle le service directement.
+4. Le dismiss (scan ou secours) passe par `FinishRingingUseCase`, qui pose le verrou **puis** désactive le réveil, et enregistre l'historique. **Le service et l'activité réagissent au changement d'état** : personne n'appelle le service directement. Comme `RingingActivity` se ferme (et annule ses ViewModels) dès que l'état quitte `Ringing`, `FinishRingingUseCase` tourne en `NonCancellable` : sinon le verrou et l'historique écrits après sont perdus (bug réel, couvert par `AlarmLifecycleTest`).
 
 ### Widget
 
@@ -80,7 +80,7 @@ Ces règles sont la raison d'être de l'app. Ne jamais les assouplir sans demand
 - Navigation type-safe (routes `@Serializable` dans `presentation/main/CrystalNavHost.kt`).
 - DI : Hilt. Les use cases du domaine ont un constructeur `@Inject` (javax.inject, seule dépendance non-coroutines du domaine). Les `BroadcastReceiver` passent par `ReceiverEntryPoint`.
 - Persistance : un seul DataStore Preferences (`crystal`), clés dans `data/local/PreferenceKeys.kt`, listes sérialisées en JSON (DTO dans `data/local/Dtos.kt`). Toute évolution de format doit lire l'ancien (voir la migration du code unique v1.0 dans `DataStoreSettingsRepository`).
-- Sonneries intégrées : générées par `tools/generate_ringtones.py` (Python pur, WAV en boucle). Pour en ajouter une : une fonction dans le script, une entrée dans `BuiltinRingtone`, deux strings (nom + description). Ne jamais ajouter de son sous droits.
+- Sonneries intégrées (`BuiltinRingtone`, rangées par `RingtoneCategory` : Classiques, Doux, Électro, Techno, Funk & pop, puis Téléphone et Tes sons) : boucles WAV générées par `tools/generate_ringtones.py` (Python pur) et morceaux MP3 Pixabay (licence libre pour une app) dans `res/raw`, origine listée dans `tools/ringtones_credits.md`. Pour en ajouter une : le fichier dans `res/raw`, une entrée dans `BuiltinRingtone` (clé jamais renommée : elle est stockée dans les réglages) avec sa catégorie, deux strings (nom + description), une ligne dans les crédits. Ne jamais ajouter de son sous droits.
 - Tout nouveau use case ou règle métier est accompagné d'un test dans `domain/src/test` (fakes dans `Fakes.kt`).
 
 ## Commandes

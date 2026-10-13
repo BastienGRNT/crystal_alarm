@@ -103,7 +103,7 @@ class DataStoreRingtoneRepository @Inject constructor(
     private fun fileFor(id: String) = File(directory, id.removePrefix(IMPORTED_PREFIX))
 
     private fun builtins() = BuiltinRingtone.entries.map {
-        Ringtone(it.id, context.getString(it.title), RingtoneKind.Builtin, context.getString(it.description))
+        Ringtone(it.id, context.getString(it.title), RingtoneKind.Builtin, context.getString(it.description), it.category)
     }
 
     private fun systemRingtone() = Ringtone(

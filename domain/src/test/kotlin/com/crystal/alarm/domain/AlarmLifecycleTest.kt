@@ -21,6 +21,9 @@ import com.crystal.alarm.domain.usecase.SetAlarmUseCase
 import com.crystal.alarm.domain.usecase.StartRingingUseCase
 import com.crystal.alarm.domain.usecase.UpdateLockMinutesUseCase
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import java.time.Duration
 import java.time.LocalTime
@@ -31,6 +34,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -236,5 +240,57 @@ class AlarmLifecycleTest {
         assertIs<SetAlarmResult.Locked>(enable())
         time.advance(Duration.ofMinutes(31))
         assertIs<SetAlarmResult.Scheduled>(enable())
+    }
+
+    @Test
+    fun `during the lock no alarm at all can be set, even one ringing long after it ends`() = runTest {
+        ringAt7()
+        dismissWithCode("3017620422003")
+        val lock = assertNotNull(locks.current())
+
+        // 07:00 + 30 min lock: an alarm at 09:30 rings 2 h after the lock ends, still refused.
+        time.advance(Duration.ofMinutes(29))
+        assertIs<SetAlarmResult.Locked>(setAlarm(LocalTime.of(9, 30)))
+        assertIs<SetAlarmResult.Locked>(setAlarm(LocalTime.of(22, 0)))
+        assertIs<SetAlarmResult.Locked>(enable())
+        assertEquals(AlarmState.None, alarms.current())
+        assertNull(scheduler.scheduled)
+
+        time.instant = lock.until
+        assertIs<SetAlarmResult.Scheduled>(setAlarm(LocalTime.of(9, 30)))
+    }
+
+    @Test
+    fun `the lock is already set when the alarm turns off`() = runTest {
+        ringAt7()
+        val locksSeenWhenOff = mutableListOf<Boolean>()
+        // Unconfined: the watcher reacts to each state change immediately, like the home screen would.
+        val watcher = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            alarms.state.collect { if (it == AlarmState.None) locksSeenWhenOff += locks.current()?.isActive(time.instant) == true }
+        }
+        dismissWithCode("3017620422003")
+        watcher.cancel()
+        assertEquals(listOf(true), locksSeenWhenOff)
+    }
+
+    @Test
+    fun `dismissal completes even when the ringing screen closes mid-way`() = runTest {
+        ringAt7()
+        val rescue = RescueChallenge(Random(3))
+        val progress = rescue.start().let { rescue.submitText(it, it.text) }
+        val done = assertIs<RescueAnswer.Completed>(rescue.answer(progress, progress.problem.answer)).progress
+
+        // Like RingingActivity: as soon as the alarm is off, the screen closes and its scope is cancelled.
+        lateinit var dismissal: Job
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            alarms.state.first { it == AlarmState.None }
+            dismissal.cancel()
+        }
+        dismissal = launch { dismissWithRescue(done) }
+        dismissal.join()
+
+        assertEquals(true, locks.current()?.isActive(time.instant))
+        assertEquals(1, history.records.value.size)
+        assertIs<SetAlarmResult.Locked>(enable())
     }
 }

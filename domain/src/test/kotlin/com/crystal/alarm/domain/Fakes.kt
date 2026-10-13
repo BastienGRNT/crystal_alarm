@@ -17,6 +17,7 @@ import com.crystal.alarm.domain.repository.RingtoneRepository
 import com.crystal.alarm.domain.repository.SettingsRepository
 import com.crystal.alarm.domain.repository.WakeUpHistoryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.yield
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
@@ -51,6 +52,7 @@ class FakeLockRepository : LockRepository {
     override val lock = MutableStateFlow<Lock?>(null)
     override suspend fun current() = lock.value
     override suspend fun set(lock: Lock) {
+        yield()
         this.lock.value = lock
     }
 }
@@ -79,6 +81,7 @@ class FakeSettingsRepository(
 class FakeWakeUpHistoryRepository : WakeUpHistoryRepository {
     override val records = MutableStateFlow<List<WakeUpRecord>>(emptyList())
     override suspend fun add(record: WakeUpRecord) {
+        yield()
         records.value = (listOf(record) + records.value).take(WakeUpRecord.MAX_RECORDS)
     }
 }

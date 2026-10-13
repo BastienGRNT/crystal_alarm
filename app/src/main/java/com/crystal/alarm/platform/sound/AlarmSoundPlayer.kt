@@ -25,6 +25,10 @@ import javax.inject.Inject
  * Plays the chosen ringtone in a loop at the chosen alarm volume, re-asserted continuously
  * (turning the volume down doesn't help), optionally rising progressively, optionally vibrating.
  * Restores the user's alarm volume on [stop].
+ *
+ * The ringtone loops forever whatever its length. A watchdog checks every tick that it is
+ * still playing: if the player dies (media server crash, decoding error…), the ringtone is
+ * restarted, and if nothing plays anymore it falls back to a beep. Silence is never an option.
  */
 class AlarmSoundPlayer @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -40,6 +44,7 @@ class AlarmSoundPlayer @Inject constructor(
         }
 
     private var player: MediaPlayer? = null
+    private var fallbackTone: ToneGenerator? = null
     private var originalVolume: Int? = null
     private var loopJob: Job? = null
 
@@ -50,24 +55,35 @@ class AlarmSoundPlayer @Inject constructor(
         val targetVolume = audio?.alarmStreamVolume(sound.volumePercent)
         targetVolume?.let { audio.setAlarmStreamVolume(it) }
 
-        player = context.startFirstPlayable(ringtones.playbackCandidates(sound.ringtoneId), looping = true, wakeLock = true)
-        if (sound.progressive) player?.setVolume(MIN_GAIN, MIN_GAIN)
-        val fallbackTone = if (player == null) ToneGenerator(AudioManager.STREAM_ALARM, ToneGenerator.MAX_VOLUME) else null
+        startRingtone(sound)
 
         val startedAt = SystemClock.elapsedRealtime()
         var lastBeep = 0L
+        var lastRestart = 0L
         loopJob = scope.launch {
             while (isActive) {
                 targetVolume?.let { audio.setAlarmStreamVolume(it) }
                 val elapsed = SystemClock.elapsedRealtime() - startedAt
+                val current = player
+                if (current != null && !current.isPlayingSafely() && elapsed - lastRestart >= RESTART_COOLDOWN_MS) {
+                    lastRestart = elapsed
+                    current.runCatching { release() }
+                    startRingtone(sound)
+                }
                 if (sound.progressive) player?.let { applyRamp(it, elapsed) }
-                if (fallbackTone != null && elapsed - lastBeep >= 1_000) {
-                    fallbackTone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 800)
+                val tone = fallbackTone
+                if (tone != null && elapsed - lastBeep >= 1_000) {
+                    tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 800)
                     lastBeep = elapsed
                 }
                 delay(TICK_MS)
             }
-        }.also { job -> job.invokeOnCompletion { fallbackTone?.release() } }
+        }.also { job ->
+            job.invokeOnCompletion {
+                fallbackTone?.release()
+                fallbackTone = null
+            }
+        }
 
         if (sound.vibrate) vibrate()
     }
@@ -84,6 +100,18 @@ class AlarmSoundPlayer @Inject constructor(
         originalVolume?.let { audioManager?.setAlarmStreamVolume(it) }
         originalVolume = null
     }
+
+    /** Looping ringtone, or the beep fallback when no candidate can be played. */
+    private fun startRingtone(sound: SoundSettings) {
+        player = context.startFirstPlayable(ringtones.playbackCandidates(sound.ringtoneId), looping = true, wakeLock = true)
+        if (sound.progressive) player?.setVolume(MIN_GAIN, MIN_GAIN)
+        if (player == null && fallbackTone == null) {
+            fallbackTone = runCatching { ToneGenerator(AudioManager.STREAM_ALARM, ToneGenerator.MAX_VOLUME) }.getOrNull()
+        }
+    }
+
+    /** A player in error state throws instead of answering: that counts as not playing. */
+    private fun MediaPlayer.isPlayingSafely(): Boolean = runCatching { isPlaying }.getOrDefault(false)
 
     /** Quadratic curve: loudness feels linear to the ear. */
     private fun applyRamp(player: MediaPlayer, elapsedMs: Long) {
@@ -106,5 +134,8 @@ class AlarmSoundPlayer @Inject constructor(
     private companion object {
         const val MIN_GAIN = 0.03f
         const val TICK_MS = 250L
+
+        /** Don't hammer a failing source: at most one restart attempt per second. */
+        const val RESTART_COOLDOWN_MS = 1_000L
     }
 }
