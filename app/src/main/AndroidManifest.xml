@@ -14,6 +14,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Brings the ringing screen back when the user leaves it while the alarm rings. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <uses-feature
         android:name="android.hardware.camera.any"
@@ -46,7 +48,8 @@
             android:launchMode="singleTask"
             android:showWhenLocked="true"
             android:taskAffinity="com.crystal.alarm.ringing"
-            android:turnScreenOn="true" />
+            android:turnScreenOn="true"
+            android:windowSoftInputMode="adjustResize" />
 
         <service
             android:name=".platform.alarm.AlarmRingingService"

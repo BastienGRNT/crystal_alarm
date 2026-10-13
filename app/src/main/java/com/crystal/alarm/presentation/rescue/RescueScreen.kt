@@ -10,6 +10,28 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
+import com.crystal.alarm.domain.rescue.RescueStep
+import com.crystal.alarm.domain.rescue.TextCheck
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -61,6 +83,119 @@ fun RescueScreen(
     viewModel: RescueViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(CrystalColors.Background)
+            .navigationBarsPadding()
+            .imePadding(),
+    ) {
+        ScreenHeader(title = stringResource(R.string.rescue_title), onBack = onBack)
+        StepSegments(state.progress.step, Modifier.padding(horizontal = 24.dp))
+        when (state.progress.step) {
+            RescueStep.CopyText -> CopyTextStep(state, viewModel::onTextChange)
+            RescueStep.Calculation, RescueStep.Done -> CalculationStep(state, viewModel)
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.CopyTextStep(state: RescueUiState, onTextChange: (String) -> Unit) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    val check = state.textCheck
+
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp),
+    ) {
+        Spacer(Modifier.height(12.dp))
+        Text(stringResource(R.string.rescue_step_text), style = CrystalType.Caption, color = CrystalColors.TextMuted)
+        Spacer(Modifier.height(16.dp))
+        // Plain Text: not selectable, so the target can't be copied and pasted.
+        Text(
+            text = highlightedTarget(state.progress.text, check),
+            style = TargetStyle,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(CrystalColors.Surface)
+                .padding(20.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+        val shape = RoundedCornerShape(18.dp)
+        BasicTextField(
+            value = state.textInput,
+            onValueChange = onTextChange,
+            textStyle = CrystalType.Body.copy(color = CrystalColors.Text),
+            cursorBrush = SolidColor(CrystalColors.Accent),
+            minLines = 3,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
+                keyboardType = KeyboardType.Text,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focus),
+            decorationBox = { inner ->
+                Box(
+                    Modifier
+                        .clip(shape)
+                        .background(CrystalColors.SurfaceHigh)
+                        .border(1.dp, if (check.hasError) CrystalColors.Danger else CrystalColors.Accent, shape)
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                ) {
+                    if (state.textInput.isEmpty()) {
+                        Text(stringResource(R.string.rescue_text_placeholder), style = CrystalType.Body, color = CrystalColors.TextFaint)
+                    }
+                    inner()
+                }
+            },
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = if (check.hasError) stringResource(R.string.rescue_text_error) else " ",
+            style = CrystalType.Label,
+            color = CrystalColors.Danger,
+        )
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+private val TargetStyle = TextStyle(fontSize = 22.sp, lineHeight = 34.sp, fontWeight = FontWeight.Medium)
+
+/**
+ * Already typed part in accent, the first wrong letter boxed and underlined (not only red:
+ * the user is colorblind), the rest in plain text.
+ */
+private fun highlightedTarget(text: String, check: TextCheck): AnnotatedString {
+    // The check counts characters of the normalized text; the generated text is already
+    // lowercase, accent-free and single-spaced, so indices match.
+    val matched = check.matched.coerceIn(0, text.length)
+    return buildAnnotatedString {
+        withStyle(SpanStyle(color = CrystalColors.Accent)) { append(text.take(matched)) }
+        if (check.hasError && matched < text.length) {
+            withStyle(
+                SpanStyle(
+                    color = CrystalColors.Background,
+                    background = CrystalColors.Danger,
+                    textDecoration = TextDecoration.Underline,
+                    fontWeight = FontWeight.Bold,
+                ),
+            ) { append(text[matched]) }
+            withStyle(SpanStyle(color = CrystalColors.Text)) { append(text.substring(matched + 1)) }
+        } else {
+            withStyle(SpanStyle(color = CrystalColors.Text)) { append(text.substring(matched)) }
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.CalculationStep(state: RescueUiState, viewModel: RescueViewModel) {
     val haptics = LocalHapticFeedback.current
     val shake = remember { Animatable(0f) }
 
@@ -73,76 +208,73 @@ fun RescueScreen(
     }
 
     Column(
-        Modifier
-            .fillMaxSize()
-            .background(CrystalColors.Background)
-            .navigationBarsPadding(),
+        modifier = Modifier
+            .weight(1f)
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        ScreenHeader(title = stringResource(R.string.rescue_title), onBack = onBack)
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            ProgressSegments(solved = state.progress.solved, required = state.progress.required)
-            Spacer(Modifier.height(12.dp))
-            Text(
-                stringResource(R.string.rescue_rules, state.progress.required),
-                style = CrystalType.Caption,
-                color = CrystalColors.TextMuted,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.weight(1f))
-            AnimatedContent(
-                targetState = state.progress.problem,
-                transitionSpec = { (slideInHorizontally { it / 3 } + fadeIn()) togetherWith fadeOut() },
-                label = "problem",
-            ) { problem ->
-                Text(
-                    "${problem.left} × ${problem.right}",
-                    style = CrystalType.Display,
-                    color = CrystalColors.Text,
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = state.input.ifEmpty { "?" },
-                style = CrystalType.Display,
-                color = if (state.input.isEmpty()) CrystalColors.TextFaint else CrystalColors.Accent,
-                modifier = Modifier.graphicsLayer { translationX = shake.value },
-            )
-            Spacer(Modifier.height(12.dp))
-            FeedbackText(state.feedback, state.completed)
-            Spacer(Modifier.weight(1f))
-        }
-        Keypad(
-            onDigit = viewModel::onDigit,
-            onBackspace = viewModel::onBackspace,
-            onSubmit = viewModel::onSubmit,
-            submitEnabled = state.input.isNotEmpty() && !state.completed,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+        Spacer(Modifier.height(12.dp))
+        Text(
+            stringResource(R.string.rescue_step_calc),
+            style = CrystalType.Caption,
+            color = CrystalColors.TextMuted,
+            textAlign = TextAlign.Center,
         )
+        Spacer(Modifier.weight(1f))
+        AnimatedContent(
+            targetState = state.progress.problem,
+            transitionSpec = { (slideInHorizontally { it / 3 } + fadeIn()) togetherWith fadeOut() },
+            label = "problem",
+        ) { problem ->
+            Text(
+                "${problem.left} ${problem.operator.symbol} ${problem.right}",
+                style = CrystalType.Display,
+                color = CrystalColors.Text,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = state.calcInput.ifEmpty { "?" },
+            style = CrystalType.Display,
+            color = if (state.calcInput.isEmpty()) CrystalColors.TextFaint else CrystalColors.Accent,
+            modifier = Modifier.graphicsLayer { translationX = shake.value },
+        )
+        Spacer(Modifier.height(12.dp))
+        FeedbackText(state)
+        Spacer(Modifier.weight(1f))
     }
+    Keypad(
+        onDigit = viewModel::onDigit,
+        onBackspace = viewModel::onBackspace,
+        onSubmit = viewModel::onSubmit,
+        submitEnabled = state.calcInput.isNotEmpty() && !state.completed,
+        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+    )
 }
 
 @Composable
-private fun FeedbackText(feedback: RescueFeedback, completed: Boolean) {
+private fun FeedbackText(state: RescueUiState) {
+    val expected = state.wrongExpected
     val (text, color) = when {
-        completed -> stringResource(R.string.rescue_done) to CrystalColors.Success
-        feedback is RescueFeedback.Wrong -> stringResource(R.string.rescue_wrong, feedback.expected) to CrystalColors.Danger
-        feedback is RescueFeedback.Correct -> stringResource(R.string.rescue_correct) to CrystalColors.Success
+        state.completed -> stringResource(R.string.rescue_done) to CrystalColors.Success
+        expected != null -> stringResource(R.string.rescue_wrong, expected) to CrystalColors.Danger
         else -> " " to Color.Transparent
     }
     Text(text, style = CrystalType.Label, color = color, textAlign = TextAlign.Center)
 }
 
+/** Two segments: text, then calculation. */
 @Composable
-private fun ProgressSegments(solved: Int, required: Int) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        repeat(required) { index ->
+private fun StepSegments(step: RescueStep, modifier: Modifier = Modifier) {
+    val done = when (step) {
+        RescueStep.CopyText -> 0
+        RescueStep.Calculation -> 1
+        RescueStep.Done -> 2
+    }
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        repeat(2) { index ->
             val color by animateColorAsState(
-                if (index < solved) CrystalColors.Accent else CrystalColors.SurfaceHigh,
+                if (index < done) CrystalColors.Accent else CrystalColors.SurfaceHigh,
                 label = "segment",
             )
             Box(

@@ -33,14 +33,13 @@
     <!-- Home -->
     <string name="home_next_alarm">Prochain réveil</string>
     <string name="home_no_alarm">Aucun réveil</string>
+    <string name="home_alarm_disabled">Réveil désactivé</string>
     <string name="home_ringing">Ça sonne</string>
     <string name="home_tagline">Un seul réveil. Pas de snooze.\nUn code à scanner pour l\'éteindre.</string>
     <string name="lock_title">Verrou actif</string>
     <string name="lock_subtitle">Nouveau réveil possible dans %1$s</string>
     <string name="code_missing_title">Aucun code enregistré</string>
     <string name="code_missing_subtitle">Scanne un QR code ou un code-barres loin de ton lit.</string>
-    <string name="delete_title">Supprimer le réveil ?</string>
-    <string name="delete_text">Tu n\'auras plus de réveil programmé.</string>
 
     <!-- Formatting -->
     <string name="countdown_compact_soon">&lt; 1 min</string>
@@ -49,19 +48,17 @@
     <string name="countdown_hours">dans %1$d h</string>
     <string name="countdown_hours_minutes">dans %1$d h %2$d min</string>
     <string name="duration_minutes">%1$d min</string>
+    <string name="duration_seconds">%1$d s</string>
+    <string name="duration_minutes_seconds">%1$d min %2$02d</string>
     <string name="duration_hours_minutes">%1$d h %2$02d</string>
     <string name="day_today">Aujourd\'hui</string>
     <string name="day_tomorrow">Demain</string>
-    <string name="repeat_once">Une seule fois</string>
-    <string name="repeat_everyday">Tous les jours</string>
-    <string name="repeat_weekdays">En semaine</string>
-    <string name="repeat_weekend">Le week-end</string>
 
     <!-- Editor -->
     <string name="editor_title_new">Nouveau réveil</string>
     <string name="editor_title_edit">Modifier le réveil</string>
     <string name="editor_rings_in">Sonne %1$s</string>
-    <string name="editor_repeat">Répéter</string>
+    <string name="editor_one_shot">Le réveil sonne une fois puis se désactive. Tu le réactives le soir d\'un geste.</string>
     <string name="editor_error_locked">Verrou actif : impossible de reprogrammer un réveil pour l\'instant.</string>
     <string name="editor_error_no_code">Enregistre d\'abord un code à scanner.</string>
     <string name="editor_error_ringing">L\'alarme sonne déjà.</string>
@@ -75,7 +72,9 @@
     <string name="settings_section_sound">Sonnerie</string>
     <string name="settings_lock_text">Après avoir éteint l\'alarme, impossible d\'en programmer une nouvelle pendant cette durée. Fini le snooze déguisé.</string>
     <string name="settings_lock_locked">Modifiable dans %1$s</string>
-    <string name="settings_rescue_text">Pas de code sous la main ? Résous %1$d multiplications à deux chiffres d\'affilée, de tête, pendant que l\'alarme sonne. Une erreur et tout recommence.</string>
+    <string name="settings_rescue_text">Pas de code sous la main ? Recopie un texte tiré au hasard (environ 4 lignes), puis résous un calcul simple, pendant que l\'alarme sonne.</string>
+    <string name="settings_section_sleep">Objectif de sommeil</string>
+    <string name="settings_sleep_text">Le widget t\'indique combien de temps il te reste avant de devoir dormir pour atteindre cette durée. En dessous, le compte à rebours passe au rouge.</string>
     <string name="settings_footer">Crystal Alarm · v%1$s</string>
 
     <!-- Permissions -->
@@ -85,6 +84,7 @@
     <string name="permission_full_screen">Affichage plein écran</string>
     <string name="permission_exact_alarm">Alarmes exactes</string>
     <string name="permission_camera">Caméra</string>
+    <string name="permission_overlay">Affichage par-dessus les autres applis (l\'écran d\'arrêt revient tant que ça sonne)</string>
     <string name="camera_permission_title">Accès à la caméra</string>
     <string name="camera_permission_text">La caméra sert uniquement à lire ton code. Rien n\'est enregistré ni envoyé.</string>
 
@@ -148,9 +148,11 @@
 
     <!-- Rescue -->
     <string name="rescue_title">Mode secours</string>
-    <string name="rescue_rules">%1$d bonnes réponses d\'affilée. Une erreur = retour à zéro.</string>
-    <string name="rescue_correct">Correct</string>
-    <string name="rescue_wrong">Raté, c\'était %1$d. On recommence.</string>
+    <string name="rescue_step_text">Étape 1 sur 2 · Recopie ce texte. Majuscules et accents ne comptent pas.</string>
+    <string name="rescue_step_calc">Étape 2 sur 2 · Un dernier calcul.</string>
+    <string name="rescue_text_placeholder">Tape le texte ici</string>
+    <string name="rescue_text_error">Une faute : corrige à partir de la lettre surlignée.</string>
+    <string name="rescue_wrong">Raté, c\'était %1$d. Nouveau calcul.</string>
     <string name="rescue_done">Bien réveillé. Alarme coupée.</string>
 
     <!-- Notification -->
@@ -159,16 +161,35 @@
     <string name="notification_ringing_title">Debout !</string>
     <string name="notification_ringing_text">Scanne ton code pour arrêter l\'alarme.</string>
 
+    <!-- Suivi des réveils -->
+    <string name="history_title">Suivi des réveils</string>
+    <string name="history_section_summary">Résumé</string>
+    <string name="history_section_list">Historique</string>
+    <string name="history_average_caption">en moyenne pour éteindre l\'alarme, sur tes %1$d derniers réveils</string>
+    <string name="history_best">Record : %1$s</string>
+    <string name="history_rescue_count">Secours : %1$d fois</string>
+    <string name="history_empty">Aucun réveil enregistré pour l\'instant. Le temps que tu mets à éteindre l\'alarme apparaîtra ici.</string>
+    <string name="history_row_detail">Sonnerie %1$s · %2$s</string>
+    <string name="history_method_code">code</string>
+    <string name="history_method_rescue">secours</string>
+    <string name="home_last_wake_title">Éteint en %1$s</string>
+    <string name="home_last_wake_subtitle">Dernier réveil · moyenne %1$s</string>
+    <string name="settings_section_history">Suivi</string>
+    <string name="settings_history_subtitle">Le temps mis à éteindre l\'alarme, réveil après réveil</string>
+
     <!-- Widget -->
     <string name="widget_name">Prochain réveil</string>
-    <string name="widget_description">L\'heure de ton prochain réveil et le temps restant.</string>
+    <string name="widget_description">Le temps restant avant ton réveil, l\'heure du coucher et le verrou.</string>
     <string name="widget_label_next">SONNE DANS</string>
     <string name="widget_label_ringing">RÉVEIL</string>
-    <string name="widget_label_locked">VERROUILLÉ</string>
-    <string name="widget_label_none">CRYSTAL ALARM</string>
+    <string name="widget_label_none">AUCUN RÉVEIL</string>
+    <string name="widget_label_disabled">DÉSACTIVÉ</string>
     <string name="widget_ringing">Ça sonne</string>
     <string name="widget_scheduled">%1$s · %2$s</string>
-    <string name="widget_locked">avant un nouveau réveil</string>
-    <string name="widget_none">Aucun réveil</string>
+    <string name="widget_disabled_hint">Touche pour l\'activer</string>
     <string name="widget_none_hint">Touche pour en programmer un</string>
+    <string name="widget_bedtime">Au lit dans %1$s</string>
+    <string name="widget_bedtime_late">Moins de %1$s de sommeil</string>
+    <string name="widget_bedtime_late_short">&lt; %1$s</string>
+    <string name="widget_lock">Verrou %1$s</string>
 </resources>

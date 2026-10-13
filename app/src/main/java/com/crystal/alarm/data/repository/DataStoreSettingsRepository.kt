@@ -38,6 +38,7 @@ class DataStoreSettingsRepository @Inject constructor(
                     progressive = prefs[PreferenceKeys.SOUND_PROGRESSIVE] ?: false,
                     vibrate = prefs[PreferenceKeys.SOUND_VIBRATE] ?: true,
                 ),
+                sleepGoalMinutes = prefs[PreferenceKeys.SLEEP_GOAL_MINUTES] ?: Settings.DEFAULT_SLEEP_GOAL_MINUTES,
             )
         }
         .distinctUntilChanged()
@@ -64,6 +65,10 @@ class DataStoreSettingsRepository @Inject constructor(
             it[PreferenceKeys.SOUND_PROGRESSIVE] = sound.progressive
             it[PreferenceKeys.SOUND_VIBRATE] = sound.vibrate
         }
+    }
+
+    override suspend fun setSleepGoalMinutes(minutes: Int) {
+        store.edit { it[PreferenceKeys.SLEEP_GOAL_MINUTES] = minutes }
     }
 
     private fun Preferences.readWakeCodes(): Pair<List<WakeCode>, String?> {

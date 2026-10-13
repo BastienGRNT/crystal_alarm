@@ -5,7 +5,10 @@ import com.crystal.alarm.domain.port.AlarmScheduler
 import com.crystal.alarm.domain.repository.AlarmRepository
 import javax.inject.Inject
 
-/** Deletes the scheduled alarm. A ringing alarm can never be cancelled, only dismissed. */
+/**
+ * Disables the scheduled alarm; its time is kept so [EnableAlarmUseCase] can turn it back on.
+ * Allowed during the post-dismissal lock. A ringing alarm can never be cancelled, only dismissed.
+ */
 class CancelAlarmUseCase @Inject constructor(
     private val alarmRepository: AlarmRepository,
     private val scheduler: AlarmScheduler,

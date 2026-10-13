@@ -13,6 +13,7 @@ import com.crystal.alarm.domain.usecase.ObserveRingtonesUseCase
 import com.crystal.alarm.domain.usecase.RenameWakeCodeUseCase
 import com.crystal.alarm.domain.usecase.SelectWakeCodeUseCase
 import com.crystal.alarm.domain.usecase.UpdateLockMinutesUseCase
+import com.crystal.alarm.domain.usecase.UpdateSleepGoalUseCase
 import com.crystal.alarm.presentation.components.tickerFlow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +40,7 @@ class SettingsViewModel @Inject constructor(
     observeDashboard: ObserveDashboardUseCase,
     observeRingtones: ObserveRingtonesUseCase,
     private val updateLockMinutes: UpdateLockMinutesUseCase,
+    private val updateSleepGoal: UpdateSleepGoalUseCase,
     private val selectWakeCode: SelectWakeCodeUseCase,
     private val renameWakeCode: RenameWakeCodeUseCase,
     private val deleteWakeCode: DeleteWakeCodeUseCase,
@@ -61,6 +63,10 @@ class SettingsViewModel @Inject constructor(
 
     fun onLockMinutesChange(minutes: Int) {
         viewModelScope.launch { updateLockMinutes(minutes) }
+    }
+
+    fun onSleepGoalChange(minutes: Int) {
+        viewModelScope.launch { updateSleepGoal(minutes) }
     }
 
     fun onSelectCode(id: String) {

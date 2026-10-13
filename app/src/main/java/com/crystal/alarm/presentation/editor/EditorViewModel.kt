@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalTime
 import javax.inject.Inject
@@ -28,7 +27,6 @@ import javax.inject.Inject
 data class EditorForm(
     val hour: Int,
     val minute: Int,
-    val repeatDays: Set<DayOfWeek>,
     val isNew: Boolean,
 )
 
@@ -66,7 +64,7 @@ class EditorViewModel @Inject constructor(
                 form = form,
                 ringsIn = form?.let {
                     val now = timeSource.now()
-                    val trigger = computeNextTrigger(LocalTime.of(it.hour, it.minute), it.repeatDays, now, timeSource.zone())
+                    val trigger = computeNextTrigger(LocalTime.of(it.hour, it.minute), now, timeSource.zone())
                     Duration.between(now, trigger)
                 },
                 error = error,
@@ -76,11 +74,12 @@ class EditorViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val existing = (observeDashboard().first().alarm as? AlarmState.Scheduled)?.alarm
+            // Defaults to the current alarm, or the last one even if it's disabled.
+            val dashboard = observeDashboard().first()
+            val existing = (dashboard.alarm as? AlarmState.Scheduled)?.alarm?.time ?: dashboard.lastTime
             form.value = EditorForm(
-                hour = existing?.time?.hour ?: DEFAULT_HOUR,
-                minute = existing?.time?.minute ?: 0,
-                repeatDays = existing?.repeatDays.orEmpty(),
+                hour = existing?.hour ?: DEFAULT_HOUR,
+                minute = existing?.minute ?: 0,
                 isNew = existing == null,
             )
         }
@@ -90,16 +89,12 @@ class EditorViewModel @Inject constructor(
 
     fun onMinuteChange(minute: Int) = form.update { it?.copy(minute = minute) }
 
-    fun onToggleDay(day: DayOfWeek) = form.update { current ->
-        current?.copy(repeatDays = if (day in current.repeatDays) current.repeatDays - day else current.repeatDays + day)
-    }
-
     fun onSave() {
         val current = form.value ?: return
         if (saving.value) return
         viewModelScope.launch {
             saving.value = true
-            error.value = when (setAlarm(LocalTime.of(current.hour, current.minute), current.repeatDays)) {
+            error.value = when (setAlarm(LocalTime.of(current.hour, current.minute))) {
                 is SetAlarmResult.Scheduled -> null.also { _events.send(EditorEvent.Saved) }
                 is SetAlarmResult.Locked -> EditorError.Locked
                 SetAlarmResult.MissingWakeCode -> EditorError.MissingWakeCode

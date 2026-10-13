@@ -9,7 +9,6 @@ import com.crystal.alarm.domain.usecase.DeleteWakeCodeUseCase
 import com.crystal.alarm.domain.usecase.DismissResult
 import com.crystal.alarm.domain.usecase.DismissWithCodeUseCase
 import com.crystal.alarm.domain.usecase.FinishRingingUseCase
-import com.crystal.alarm.domain.usecase.ComputeNextTriggerUseCase
 import com.crystal.alarm.domain.usecase.RenameWakeCodeUseCase
 import com.crystal.alarm.domain.usecase.SelectWakeCodeUseCase
 import kotlinx.coroutines.test.runTest
@@ -30,7 +29,7 @@ class WakeCodeUseCasesTest {
     private val rename = RenameWakeCodeUseCase(settings)
     private val delete = DeleteWakeCodeUseCase(alarms, settings)
 
-    private val alarm = Alarm(LocalTime.of(7, 0), emptySet(), Instant.parse("2026-10-14T05:00:00Z"))
+    private val alarm = Alarm(LocalTime.of(7, 0), Instant.parse("2026-10-14T05:00:00Z"))
 
     private suspend fun addCode(name: String, value: String): WakeCode =
         assertIs<AddWakeCodeResult.Added>(add(name, value, "QR")).code
@@ -60,7 +59,7 @@ class WakeCodeUseCasesTest {
         alarms.markRinging(alarm, alarm.triggerAt)
 
         val time = FakeTimeSource(alarm.triggerAt)
-        val finish = FinishRingingUseCase(alarms, FakeLockRepository(), settings, FakeScheduler(), time, ComputeNextTriggerUseCase())
+        val finish = FinishRingingUseCase(alarms, FakeLockRepository(), settings, FakeWakeUpHistoryRepository(), FakeScheduler(), time)
         val dismiss = DismissWithCodeUseCase(alarms, settings, finish)
         assertEquals(DismissResult.WrongCode, dismiss("222"))
         assertEquals(DismissResult.Dismissed, dismiss("111"))

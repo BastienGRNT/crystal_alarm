@@ -1,5 +1,6 @@
 package com.crystal.alarm.domain.usecase
 
+import com.crystal.alarm.domain.model.DismissMethod
 import com.crystal.alarm.domain.rescue.RescueProgress
 import javax.inject.Inject
 
@@ -9,6 +10,6 @@ class DismissWithRescueUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(progress: RescueProgress): DismissResult {
         if (!progress.isComplete) return DismissResult.WrongCode
-        return if (finishRinging()) DismissResult.Dismissed else DismissResult.NotRinging
+        return if (finishRinging(DismissMethod.Rescue)) DismissResult.Dismissed else DismissResult.NotRinging
     }
 }

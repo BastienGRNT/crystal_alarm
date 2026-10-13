@@ -8,15 +8,18 @@ import com.crystal.alarm.domain.model.RingtoneKind
 import com.crystal.alarm.domain.model.Settings
 import com.crystal.alarm.domain.model.SoundSettings
 import com.crystal.alarm.domain.model.WakeCode
+import com.crystal.alarm.domain.model.WakeUpRecord
 import com.crystal.alarm.domain.port.AlarmScheduler
 import com.crystal.alarm.domain.port.TimeSource
 import com.crystal.alarm.domain.repository.AlarmRepository
 import com.crystal.alarm.domain.repository.LockRepository
 import com.crystal.alarm.domain.repository.RingtoneRepository
 import com.crystal.alarm.domain.repository.SettingsRepository
+import com.crystal.alarm.domain.repository.WakeUpHistoryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalTime
 import java.time.ZoneId
 
 class FakeTimeSource(var instant: Instant, private val zoneId: ZoneId = ZoneId.of("Europe/Paris")) : TimeSource {
@@ -29,12 +32,15 @@ class FakeTimeSource(var instant: Instant, private val zoneId: ZoneId = ZoneId.o
 
 class FakeAlarmRepository : AlarmRepository {
     override val state = MutableStateFlow<AlarmState>(AlarmState.None)
+    override val lastTime = MutableStateFlow<LocalTime?>(null)
     override suspend fun current() = state.value
     override suspend fun schedule(alarm: Alarm) {
         state.value = AlarmState.Scheduled(alarm)
+        lastTime.value = alarm.time
     }
     override suspend fun markRinging(alarm: Alarm, since: Instant) {
         state.value = AlarmState.Ringing(alarm, since)
+        lastTime.value = alarm.time
     }
     override suspend fun clear() {
         state.value = AlarmState.None
@@ -64,6 +70,16 @@ class FakeSettingsRepository(
     }
     override suspend fun setSound(sound: SoundSettings) {
         settings.value = settings.value.copy(sound = sound)
+    }
+    override suspend fun setSleepGoalMinutes(minutes: Int) {
+        settings.value = settings.value.copy(sleepGoalMinutes = minutes)
+    }
+}
+
+class FakeWakeUpHistoryRepository : WakeUpHistoryRepository {
+    override val records = MutableStateFlow<List<WakeUpRecord>>(emptyList())
+    override suspend fun add(record: WakeUpRecord) {
+        records.value = (listOf(record) + records.value).take(WakeUpRecord.MAX_RECORDS)
     }
 }
 

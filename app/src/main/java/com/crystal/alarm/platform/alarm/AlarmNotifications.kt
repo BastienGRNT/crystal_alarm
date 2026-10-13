@@ -30,13 +30,15 @@ object AlarmNotifications {
         context.getSystemService<NotificationManager>()?.createNotificationChannel(channel)
     }
 
+    fun ringingScreenIntent(context: Context): Intent = Intent(context, RingingActivity::class.java)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION)
+
     /** Ongoing, no actions: there is deliberately no "snooze" nor "dismiss" button. */
     fun ringing(context: Context): Notification {
         val openRinging = PendingIntent.getActivity(
             context,
             0,
-            Intent(context, RingingActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION),
+            ringingScreenIntent(context),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         return NotificationCompat.Builder(context, CHANNEL_RINGING)

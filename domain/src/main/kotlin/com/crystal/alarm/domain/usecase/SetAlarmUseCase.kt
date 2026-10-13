@@ -8,7 +8,6 @@ import com.crystal.alarm.domain.port.TimeSource
 import com.crystal.alarm.domain.repository.AlarmRepository
 import com.crystal.alarm.domain.repository.LockRepository
 import com.crystal.alarm.domain.repository.SettingsRepository
-import java.time.DayOfWeek
 import java.time.LocalTime
 import javax.inject.Inject
 
@@ -32,7 +31,7 @@ class SetAlarmUseCase @Inject constructor(
     private val timeSource: TimeSource,
     private val computeNextTrigger: ComputeNextTriggerUseCase,
 ) {
-    suspend operator fun invoke(time: LocalTime, repeatDays: Set<DayOfWeek>): SetAlarmResult {
+    suspend operator fun invoke(time: LocalTime): SetAlarmResult {
         val now = timeSource.now()
         if (alarmRepository.current() is AlarmState.Ringing) return SetAlarmResult.AlarmRinging
         if (settingsRepository.current().activeWakeCode == null) return SetAlarmResult.MissingWakeCode
@@ -42,8 +41,7 @@ class SetAlarmUseCase @Inject constructor(
 
         val alarm = Alarm(
             time = time,
-            repeatDays = repeatDays,
-            triggerAt = computeNextTrigger(time, repeatDays, now, timeSource.zone()),
+            triggerAt = computeNextTrigger(time, now, timeSource.zone()),
         )
         alarmRepository.schedule(alarm)
         scheduler.schedule(alarm)

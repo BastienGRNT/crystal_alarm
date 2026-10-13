@@ -13,6 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.crystal.alarm.presentation.editor.EditorScreen
+import com.crystal.alarm.presentation.history.HistoryScreen
 import com.crystal.alarm.presentation.home.HomeScreen
 import com.crystal.alarm.presentation.register.RegisterCodeScreen
 import com.crystal.alarm.presentation.settings.SettingsScreen
@@ -25,6 +26,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object SettingsRoute
 @Serializable data object RegisterCodeRoute
 @Serializable data object SoundRoute
+@Serializable data object HistoryRoute
 
 private const val DURATION = 320
 
@@ -47,6 +49,7 @@ fun CrystalNavHost() {
                 onEditAlarm = { navController.navigate(EditorRoute) },
                 onOpenSettings = { navController.navigate(SettingsRoute) },
                 onRegisterCode = { navController.navigate(RegisterCodeRoute) },
+                onOpenHistory = { navController.navigate(HistoryRoute) },
             )
         }
         composable<EditorRoute> {
@@ -57,10 +60,14 @@ fun CrystalNavHost() {
                 onBack = { navController.popBackStack() },
                 onRegisterCode = { navController.navigate(RegisterCodeRoute) },
                 onOpenSound = { navController.navigate(SoundRoute) },
+                onOpenHistory = { navController.navigate(HistoryRoute) },
             )
         }
         composable<SoundRoute> {
             SoundScreen(onBack = { navController.popBackStack() })
+        }
+        composable<HistoryRoute> {
+            HistoryScreen(onBack = { navController.popBackStack() })
         }
         composable<RegisterCodeRoute> {
             RegisterCodeScreen(onDone = { navController.popBackStack() })

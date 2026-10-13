@@ -10,6 +10,7 @@ import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import com.crystal.alarm.domain.model.AlarmState
 import com.crystal.alarm.domain.repository.AlarmRepository
+import com.crystal.alarm.platform.alarm.RingingScreenVisibility
 import com.crystal.alarm.presentation.theme.CrystalTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
@@ -19,7 +20,8 @@ import javax.inject.Inject
 
 /**
  * Shown over the lock screen when the alarm rings. Back is swallowed; the only ways out
- * are scanning the wake code or completing the rescue challenge.
+ * are scanning the wake code or completing the rescue challenge. Leaving it any other way
+ * brings it back (see [com.crystal.alarm.platform.alarm.RingingScreenKeeper]).
  */
 @AndroidEntryPoint
 class RingingActivity : ComponentActivity() {
@@ -51,6 +53,16 @@ class RingingActivity : ComponentActivity() {
             if (ringing != null) alarmRepository.state.first { it !is AlarmState.Ringing }
             finishAndRemoveTask()
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        RingingScreenVisibility.onShown()
+    }
+
+    override fun onStop() {
+        RingingScreenVisibility.onHidden()
+        super.onStop()
     }
 
     private companion object {

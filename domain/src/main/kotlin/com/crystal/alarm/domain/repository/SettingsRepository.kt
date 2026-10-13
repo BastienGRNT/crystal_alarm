@@ -15,4 +15,6 @@ interface SettingsRepository {
     suspend fun setLockMinutes(minutes: Int)
 
     suspend fun setSound(sound: SoundSettings)
+
+    suspend fun setSleepGoalMinutes(minutes: Int)
 }

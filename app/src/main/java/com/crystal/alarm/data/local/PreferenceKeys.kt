@@ -9,7 +9,8 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 internal object PreferenceKeys {
     // Alarm
     val ALARM_MINUTE_OF_DAY = intPreferencesKey("alarm_minute_of_day")
-    val ALARM_REPEAT_DAYS = stringSetPreferencesKey("alarm_repeat_days")
+    /** Repeat days of older versions: ignored, removed on the next write. */
+    val LEGACY_ALARM_REPEAT_DAYS = stringSetPreferencesKey("alarm_repeat_days")
     val ALARM_TRIGGER_AT = longPreferencesKey("alarm_trigger_at")
     val ALARM_RINGING_SINCE = longPreferencesKey("alarm_ringing_since")
 
@@ -31,6 +32,10 @@ internal object PreferenceKeys {
     val SOUND_VOLUME = intPreferencesKey("sound_volume")
     val SOUND_PROGRESSIVE = booleanPreferencesKey("sound_progressive")
     val SOUND_VIBRATE = booleanPreferencesKey("sound_vibrate")
+    val SLEEP_GOAL_MINUTES = intPreferencesKey("sleep_goal_minutes")
+
+    // Wake-up history (JSON list of WakeUpRecordDto, newest first)
+    val WAKE_UP_HISTORY_JSON = stringPreferencesKey("wake_up_history_json")
 
     // Imported ringtones (JSON list of ImportedRingtoneDto)
     val IMPORTED_RINGTONES_JSON = stringPreferencesKey("imported_ringtones_json")

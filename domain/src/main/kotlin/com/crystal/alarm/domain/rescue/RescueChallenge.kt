@@ -1,69 +1,125 @@
 package com.crystal.alarm.domain.rescue
 
+import java.text.Normalizer
 import javax.inject.Inject
 import kotlin.random.Random
 
-data class MultiplicationProblem(val left: Int, val right: Int) {
-    val answer: Int get() = left * right
+enum class Operator(val symbol: String) { Plus("+"), Times("×") }
+
+data class CalcProblem(val left: Int, val operator: Operator, val right: Int) {
+    val answer: Int
+        get() = when (operator) {
+            Operator.Plus -> left + right
+            Operator.Times -> left * right
+        }
 }
+
+enum class RescueStep { CopyText, Calculation, Done }
 
 data class RescueProgress(
-    val problem: MultiplicationProblem,
-    val solved: Int,
-    val required: Int,
+    /** Random words to copy, about four lines on a phone. */
+    val text: String,
+    val problem: CalcProblem,
+    val step: RescueStep,
 ) {
-    val isComplete: Boolean get() = solved >= required
+    val isComplete: Boolean get() = step == RescueStep.Done
 }
 
+/** How far the typed text matches: [matched] characters of the target are right so far. */
+data class TextCheck(val matched: Int, val hasError: Boolean, val isComplete: Boolean)
+
 sealed interface RescueAnswer {
-    data class Correct(val progress: RescueProgress) : RescueAnswer
-    /** Any mistake resets the whole challenge. */
-    data class Wrong(val expected: Int, val progress: RescueProgress) : RescueAnswer
     data class Completed(val progress: RescueProgress) : RescueAnswer
+    /** A wrong result only swaps the calculation: the copied text stays done. */
+    data class Wrong(val expected: Int, val progress: RescueProgress) : RescueAnswer
 }
 
 /**
- * Rescue mode: [REQUIRED_ANSWERS] two-digit multiplications in a row, solved mentally,
- * while the alarm keeps ringing. One mistake and it starts over. It must stay painful,
- * otherwise it becomes the default way to stop the alarm.
+ * Rescue mode, when the wake code is out of reach: copy a randomly generated text of
+ * [TEXT_WORDS] words, then solve one simple calculation, while the alarm keeps ringing.
+ * Long enough to wake up, with nothing to memorize from one morning to the next.
+ *
+ * Case, accents and extra spaces are ignored when comparing the text.
  */
 class RescueChallenge(private val random: Random) {
 
     @Inject
     constructor() : this(Random.Default)
 
-    fun start(): RescueProgress = RescueProgress(nextProblem(previous = null), solved = 0, required = REQUIRED_ANSWERS)
+    fun start(): RescueProgress = RescueProgress(
+        text = List(TEXT_WORDS) { WORDS.random(random) }.joinToString(" "),
+        problem = nextProblem(previous = null),
+        step = RescueStep.CopyText,
+    )
 
-    fun answer(progress: RescueProgress, value: Int): RescueAnswer {
-        if (value != progress.problem.answer) {
-            return RescueAnswer.Wrong(
-                expected = progress.problem.answer,
-                progress = progress.copy(problem = nextProblem(progress.problem), solved = 0),
-            )
-        }
-        val solved = progress.solved + 1
-        val next = progress.copy(problem = nextProblem(progress.problem), solved = solved)
-        return if (next.isComplete) RescueAnswer.Completed(next) else RescueAnswer.Correct(next)
+    fun checkText(progress: RescueProgress, input: String): TextCheck {
+        val target = normalize(progress.text)
+        val typed = normalize(input)
+        val matched = target.commonPrefixWith(typed).length
+        return TextCheck(
+            matched = matched,
+            hasError = matched < typed.length,
+            isComplete = typed == target,
+        )
     }
 
-    private fun nextProblem(previous: MultiplicationProblem?): MultiplicationProblem {
+    /** Moves on to the calculation once the whole text is copied; otherwise returns [progress] unchanged. */
+    fun submitText(progress: RescueProgress, input: String): RescueProgress =
+        if (progress.step == RescueStep.CopyText && checkText(progress, input).isComplete) {
+            progress.copy(step = RescueStep.Calculation)
+        } else {
+            progress
+        }
+
+    fun answer(progress: RescueProgress, value: Int): RescueAnswer {
+        if (progress.step != RescueStep.Calculation) return RescueAnswer.Wrong(progress.problem.answer, progress)
+        return if (value == progress.problem.answer) {
+            RescueAnswer.Completed(progress.copy(step = RescueStep.Done))
+        } else {
+            RescueAnswer.Wrong(progress.problem.answer, progress.copy(problem = nextProblem(progress.problem)))
+        }
+    }
+
+    /** Either 12..49 + 12..49, or a times table from 3 to 9. */
+    private fun nextProblem(previous: CalcProblem?): CalcProblem {
         while (true) {
-            val problem = MultiplicationProblem(operand(), operand())
+            val problem = if (random.nextBoolean()) {
+                CalcProblem(random.nextInt(12, 50), Operator.Plus, random.nextInt(12, 50))
+            } else {
+                CalcProblem(random.nextInt(3, 10), Operator.Times, random.nextInt(3, 10))
+            }
             if (problem != previous) return problem
         }
     }
 
-    /** 13..99, skipping multiples of 10 and 11 which are too easy. */
-    private fun operand(): Int {
-        while (true) {
-            val n = random.nextInt(MIN_OPERAND, MAX_OPERAND + 1)
-            if (n % 10 != 0 && n % 11 != 0) return n
-        }
-    }
-
     companion object {
-        const val REQUIRED_ANSWERS = 6
-        private const val MIN_OPERAND = 13
-        private const val MAX_OPERAND = 99
+        const val TEXT_WORDS = 18
+
+        /** Lowercase, accent-free, collapsed spaces: only the words themselves count. */
+        fun normalize(text: String): String =
+            Normalizer.normalize(text, Normalizer.Form.NFD)
+                .replace(DIACRITICS, "")
+                .lowercase()
+                .trim()
+                .replace(SPACES, " ")
+
+        private val DIACRITICS = Regex("\\p{Mn}+")
+        private val SPACES = Regex("\\s+")
+
+        /** Common, accent-free French words: easy to read half asleep, no autocorrect surprise. */
+        private val WORDS = listOf(
+            "arbre", "balle", "bateau", "bougie", "bureau", "cadre", "camion", "canard", "carte", "chaise",
+            "chat", "chemin", "cheval", "citron", "clou", "coffre", "colline", "corde", "coton", "couloir",
+            "crayon", "cuisine", "dragon", "fenetre", "feuille", "fleur", "fontaine", "foret", "fourchette", "fromage",
+            "fusee", "gant", "gateau", "girafe", "glace", "grenier", "guitare", "hibou", "jardin", "journal",
+            "lampe", "lapin", "lavande", "lettre", "lion", "livre", "lune", "maison", "marteau", "matin",
+            "melon", "miroir", "montagne", "moulin", "mouton", "nuage", "orange", "oreiller", "panier", "papier",
+            "parapluie", "pomme", "pont", "porte", "poule", "prairie", "radio", "raisin", "renard", "rideau",
+            "riviere", "robot", "route", "sable", "salade", "sapin", "savon", "soleil", "sucre", "table",
+            "tapis", "tasse", "tigre", "tomate", "train", "tulipe", "valise", "velo", "village", "violon",
+            "voiture", "zebre", "bleu", "rouge", "vert", "jaune", "grand", "petit", "rapide", "calme",
+            "doux", "froid", "chaud", "joli", "lent", "fort", "court", "long", "rond", "vide",
+            "marche", "mange", "danse", "chante", "dort", "saute", "nage", "lit", "rit", "cherche",
+        )
     }
 }

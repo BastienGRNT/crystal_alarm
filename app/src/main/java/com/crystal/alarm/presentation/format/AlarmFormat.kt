@@ -15,12 +15,7 @@ import java.util.Locale
 /** Display formatting shared by the app screens and the home screen widget. */
 object AlarmFormat {
     private val TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-
-    val WEEK: List<DayOfWeek> = DayOfWeek.entries
-    private val WEEKDAYS = setOf(
-        DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY,
-    )
-    private val WEEKEND = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
+    private val DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMM", Locale.getDefault())
 
     fun time(time: LocalTime): String = time.format(TIME)
 
@@ -59,6 +54,20 @@ object AlarmFormat {
         }
     }
 
+    /** Time taken to stop the alarm: "47 s", "2 min 14", "1 h 05". Rounded down to the second. */
+    fun preciseDuration(res: Resources, duration: Duration): String {
+        val seconds = duration.seconds.coerceAtLeast(0)
+        return when {
+            seconds < 60 -> res.getString(R.string.duration_seconds, seconds)
+            seconds < 3600 -> res.getString(R.string.duration_minutes_seconds, seconds / 60, seconds % 60)
+            else -> res.getString(R.string.duration_hours_minutes, seconds / 3600, seconds % 3600 / 60)
+        }
+    }
+
+    /** "Mardi 14 oct." */
+    fun date(instant: Instant, zone: ZoneId): String =
+        instant.atZone(zone).format(DATE).replaceFirstChar { it.titlecase(Locale.getDefault()) }
+
     /** "Aujourd'hui", "Demain" or the weekday name. */
     fun relativeDay(res: Resources, trigger: Instant, now: Instant, zone: ZoneId): String {
         val days = ChronoUnit.DAYS.between(now.atZone(zone).toLocalDate(), trigger.atZone(zone).toLocalDate())
@@ -68,17 +77,6 @@ object AlarmFormat {
             else -> dayName(trigger.atZone(zone).dayOfWeek, TextStyle.FULL)
         }
     }
-
-    fun repeatSummary(res: Resources, days: Set<DayOfWeek>): String = when {
-        days.isEmpty() -> res.getString(R.string.repeat_once)
-        days.size == 7 -> res.getString(R.string.repeat_everyday)
-        days == WEEKDAYS -> res.getString(R.string.repeat_weekdays)
-        days == WEEKEND -> res.getString(R.string.repeat_weekend)
-        else -> WEEK.filter { it in days }.joinToString(" · ") { dayName(it, TextStyle.SHORT).removeSuffix(".") }
-    }
-
-    /** Single-letter label for the day picker (L M M J V S D in French). */
-    fun dayLetter(day: DayOfWeek): String = dayName(day, TextStyle.NARROW)
 
     fun dayName(day: DayOfWeek, style: TextStyle): String =
         day.getDisplayName(style, Locale.getDefault()).replaceFirstChar { it.titlecase(Locale.getDefault()) }

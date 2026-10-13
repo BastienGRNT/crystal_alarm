@@ -1,7 +1,7 @@
 package com.crystal.alarm.domain
 
 import com.crystal.alarm.domain.usecase.ComputeNextTriggerUseCase
-import java.time.DayOfWeek
+import java.time.Duration
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -18,30 +18,45 @@ class ComputeNextTriggerUseCaseTest {
 
     @Test
     fun `one shot later today`() {
-        assertEquals(at(13, 7, 30), compute(LocalTime.of(7, 30), emptySet(), at(13, 6, 0), zone))
+        assertEquals(at(13, 7, 30), compute(LocalTime.of(7, 30), at(13, 6, 0), zone))
     }
 
     @Test
     fun `one shot already passed goes to tomorrow`() {
-        assertEquals(at(14, 7, 30), compute(LocalTime.of(7, 30), emptySet(), at(13, 22, 0), zone))
+        assertEquals(at(14, 7, 30), compute(LocalTime.of(7, 30), at(13, 22, 0), zone))
     }
 
     @Test
     fun `same minute counts as passed`() {
-        assertEquals(at(14, 7, 30), compute(LocalTime.of(7, 30), emptySet(), at(13, 7, 30, 5), zone))
+        assertEquals(at(14, 7, 30), compute(LocalTime.of(7, 30), at(13, 7, 30, 5), zone))
     }
 
     @Test
-    fun `repeating skips non selected days`() {
-        val weekend = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
-        assertEquals(at(17, 9, 0), compute(LocalTime.of(9, 0), weekend, at(13, 6, 0), zone))
+    fun `daylight saving change keeps the wall clock time`() {
+        // Night of 24 to 25 October 2026: clocks go back one hour in Paris.
+        assertEquals(at(25, 7, 0), compute(LocalTime.of(7, 0), at(24, 23, 0), zone))
     }
 
     @Test
-    fun `repeating on today only and passed goes to next week`() {
-        assertEquals(
-            at(20, 7, 0),
-            compute(LocalTime.of(7, 0), setOf(DayOfWeek.TUESDAY), at(13, 8, 0), zone),
-        )
+    fun `night of the switch to winter time lasts one hour more`() {
+        val bedtime = at(24, 23, 0)
+        val trigger = compute(LocalTime.of(7, 0), bedtime, zone)
+        assertEquals("07:00", trigger.atZone(zone).toLocalTime().toString())
+        assertEquals(Duration.ofHours(9), Duration.between(bedtime, trigger))
+    }
+
+    @Test
+    fun `night of the switch to summer time lasts one hour less`() {
+        val bedtime = ZonedDateTime.of(2027, 3, 27, 23, 0, 0, 0, zone).toInstant()
+        val trigger = compute(LocalTime.of(7, 0), bedtime, zone)
+        assertEquals("07:00", trigger.atZone(zone).toLocalTime().toString())
+        assertEquals(Duration.ofHours(7), Duration.between(bedtime, trigger))
+    }
+
+    @Test
+    fun `alarm inside the skipped hour rings right after the jump`() {
+        // 28 March 2027, 02:00 jumps to 03:00 in Paris: 02:30 doesn't exist.
+        val trigger = compute(LocalTime.of(2, 30), ZonedDateTime.of(2027, 3, 27, 23, 0, 0, 0, zone).toInstant(), zone)
+        assertEquals(ZonedDateTime.of(2027, 3, 28, 3, 30, 0, 0, zone).toInstant(), trigger)
     }
 }

@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalTime
 import javax.inject.Inject
@@ -26,6 +25,10 @@ class DataStoreAlarmRepository @Inject constructor(
 
     override val state: Flow<AlarmState> = store.safeData
         .map { it.toAlarmState() }
+        .distinctUntilChanged()
+
+    override val lastTime: Flow<LocalTime?> = store.safeData
+        .map { it[PreferenceKeys.ALARM_MINUTE_OF_DAY]?.toLocalTime() }
         .distinctUntilChanged()
 
     override suspend fun current(): AlarmState = state.first()
@@ -44,10 +47,9 @@ class DataStoreAlarmRepository @Inject constructor(
         }
     }
 
+    // The time stays: it's shown while the alarm is disabled, and re-enabling reuses it.
     override suspend fun clear() {
         store.edit {
-            it.remove(PreferenceKeys.ALARM_MINUTE_OF_DAY)
-            it.remove(PreferenceKeys.ALARM_REPEAT_DAYS)
             it.remove(PreferenceKeys.ALARM_TRIGGER_AT)
             it.remove(PreferenceKeys.ALARM_RINGING_SINCE)
         }
@@ -55,7 +57,7 @@ class DataStoreAlarmRepository @Inject constructor(
 
     private fun MutablePreferences.putAlarm(alarm: Alarm) {
         this[PreferenceKeys.ALARM_MINUTE_OF_DAY] = alarm.time.hour * 60 + alarm.time.minute
-        this[PreferenceKeys.ALARM_REPEAT_DAYS] = alarm.repeatDays.mapTo(mutableSetOf()) { it.name }
+        remove(PreferenceKeys.LEGACY_ALARM_REPEAT_DAYS)
         this[PreferenceKeys.ALARM_TRIGGER_AT] = alarm.triggerAt.toEpochMilli()
     }
 
@@ -63,9 +65,7 @@ class DataStoreAlarmRepository @Inject constructor(
         val minuteOfDay = this[PreferenceKeys.ALARM_MINUTE_OF_DAY] ?: return AlarmState.None
         val triggerAt = this[PreferenceKeys.ALARM_TRIGGER_AT] ?: return AlarmState.None
         val alarm = Alarm(
-            time = LocalTime.of(minuteOfDay / 60, minuteOfDay % 60),
-            repeatDays = this[PreferenceKeys.ALARM_REPEAT_DAYS].orEmpty()
-                .mapNotNullTo(mutableSetOf()) { name -> DayOfWeek.entries.firstOrNull { it.name == name } },
+            time = minuteOfDay.toLocalTime(),
             triggerAt = Instant.ofEpochMilli(triggerAt),
         )
         val ringingSince = this[PreferenceKeys.ALARM_RINGING_SINCE]
@@ -75,4 +75,6 @@ class DataStoreAlarmRepository @Inject constructor(
             AlarmState.Scheduled(alarm)
         }
     }
+
+    private fun Int.toLocalTime(): LocalTime = LocalTime.of(this / 60, this % 60)
 }

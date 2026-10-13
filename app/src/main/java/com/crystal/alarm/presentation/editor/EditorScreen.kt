@@ -29,10 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.crystal.alarm.R
-import com.crystal.alarm.presentation.components.DayPicker
 import com.crystal.alarm.presentation.components.FullWidthButton
 import com.crystal.alarm.presentation.components.ScreenHeader
-import com.crystal.alarm.presentation.components.SectionLabel
 import com.crystal.alarm.presentation.components.WheelPicker
 import com.crystal.alarm.presentation.format.AlarmFormat
 import com.crystal.alarm.presentation.theme.CrystalColors
@@ -83,18 +81,13 @@ fun EditorScreen(
                 style = CrystalType.BodyStrong,
                 color = CrystalColors.Accent,
             )
-            Spacer(Modifier.height(40.dp))
-            Column(Modifier.fillMaxWidth()) {
-                SectionLabel(stringResource(R.string.editor_repeat))
-                DayPicker(selected = form.repeatDays, onToggle = viewModel::onToggleDay)
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = AlarmFormat.repeatSummary(res, form.repeatDays),
-                    style = CrystalType.Caption,
-                    color = CrystalColors.TextMuted,
-                    modifier = Modifier.padding(start = 4.dp),
-                )
-            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.editor_one_shot),
+                style = CrystalType.Caption,
+                color = CrystalColors.TextMuted,
+                textAlign = TextAlign.Center,
+            )
             Spacer(Modifier.height(24.dp))
         }
 

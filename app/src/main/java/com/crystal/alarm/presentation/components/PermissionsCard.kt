@@ -86,4 +86,5 @@ fun AppPermission.labelRes(): Int = when (this) {
     AppPermission.FullScreen -> R.string.permission_full_screen
     AppPermission.ExactAlarm -> R.string.permission_exact_alarm
     AppPermission.Camera -> R.string.permission_camera
+    AppPermission.Overlay -> R.string.permission_overlay
 }

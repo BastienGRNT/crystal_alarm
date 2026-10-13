@@ -1,6 +1,7 @@
 package com.crystal.alarm.domain.usecase
 
 import com.crystal.alarm.domain.model.AlarmState
+import com.crystal.alarm.domain.model.DismissMethod
 import com.crystal.alarm.domain.repository.AlarmRepository
 import com.crystal.alarm.domain.repository.SettingsRepository
 import javax.inject.Inject
@@ -20,6 +21,6 @@ class DismissWithCodeUseCase @Inject constructor(
         if (alarmRepository.current() !is AlarmState.Ringing) return DismissResult.NotRinging
         val code = settingsRepository.current().activeWakeCode
         if (code == null || !code.matches(scanned)) return DismissResult.WrongCode
-        return if (finishRinging()) DismissResult.Dismissed else DismissResult.NotRinging
+        return if (finishRinging(DismissMethod.Code)) DismissResult.Dismissed else DismissResult.NotRinging
     }
 }

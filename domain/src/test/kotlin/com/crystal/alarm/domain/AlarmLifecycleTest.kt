@@ -1,7 +1,10 @@
 package com.crystal.alarm.domain
 
 import com.crystal.alarm.domain.model.AlarmState
+import com.crystal.alarm.domain.model.DismissMethod
+import com.crystal.alarm.domain.rescue.RescueAnswer
 import com.crystal.alarm.domain.rescue.RescueChallenge
+import com.crystal.alarm.domain.rescue.RescueStep
 import com.crystal.alarm.domain.usecase.AddWakeCodeResult
 import com.crystal.alarm.domain.usecase.AddWakeCodeUseCase
 import com.crystal.alarm.domain.usecase.CancelAlarmUseCase
@@ -9,14 +12,16 @@ import com.crystal.alarm.domain.usecase.ComputeNextTriggerUseCase
 import com.crystal.alarm.domain.usecase.DismissResult
 import com.crystal.alarm.domain.usecase.DismissWithCodeUseCase
 import com.crystal.alarm.domain.usecase.DismissWithRescueUseCase
+import com.crystal.alarm.domain.usecase.EnableAlarmUseCase
 import com.crystal.alarm.domain.usecase.FinishRingingUseCase
+import com.crystal.alarm.domain.usecase.ObserveWakeUpStatsUseCase
 import com.crystal.alarm.domain.usecase.RestoreAlarmUseCase
 import com.crystal.alarm.domain.usecase.SetAlarmResult
 import com.crystal.alarm.domain.usecase.SetAlarmUseCase
 import com.crystal.alarm.domain.usecase.StartRingingUseCase
 import com.crystal.alarm.domain.usecase.UpdateLockMinutesUseCase
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalTime
 import java.time.ZoneId
@@ -35,21 +40,23 @@ class AlarmLifecycleTest {
     private val alarms = FakeAlarmRepository()
     private val locks = FakeLockRepository()
     private val settings = FakeSettingsRepository()
+    private val history = FakeWakeUpHistoryRepository()
     private val scheduler = FakeScheduler()
     private val compute = ComputeNextTriggerUseCase()
 
     private val setAlarm = SetAlarmUseCase(alarms, locks, settings, scheduler, time, compute)
     private val cancel = CancelAlarmUseCase(alarms, scheduler)
     private val startRinging = StartRingingUseCase(alarms, scheduler, time)
-    private val finish = FinishRingingUseCase(alarms, locks, settings, scheduler, time, compute)
+    private val finish = FinishRingingUseCase(alarms, locks, settings, history, scheduler, time)
     private val dismissWithCode = DismissWithCodeUseCase(alarms, settings, finish)
     private val dismissWithRescue = DismissWithRescueUseCase(finish)
     private val restore = RestoreAlarmUseCase(alarms, scheduler, time, compute)
     private val addCode = AddWakeCodeUseCase(alarms, settings)
     private val updateLock = UpdateLockMinutesUseCase(settings, locks, time)
+    private val enable = EnableAlarmUseCase(alarms, setAlarm)
 
     private suspend fun ringAt7() {
-        setAlarm(LocalTime.of(7, 0), emptySet())
+        setAlarm(LocalTime.of(7, 0))
         time.instant = ZonedDateTime.of(2026, 10, 14, 7, 0, 0, 0, zone).toInstant()
         startRinging()
     }
@@ -58,14 +65,14 @@ class AlarmLifecycleTest {
     fun `cannot set an alarm without a wake code`() = runTest {
         val noCode = FakeSettingsRepository(code = null)
         val useCase = SetAlarmUseCase(alarms, locks, noCode, scheduler, time, compute)
-        assertEquals(SetAlarmResult.MissingWakeCode, useCase(LocalTime.of(7, 0), emptySet()))
+        assertEquals(SetAlarmResult.MissingWakeCode, useCase(LocalTime.of(7, 0)))
         assertNull(scheduler.scheduled)
     }
 
     @Test
     fun `setting an alarm replaces the previous one`() = runTest {
-        setAlarm(LocalTime.of(7, 0), emptySet())
-        setAlarm(LocalTime.of(8, 15), emptySet())
+        setAlarm(LocalTime.of(7, 0))
+        setAlarm(LocalTime.of(8, 15))
         val state = assertIs<AlarmState.Scheduled>(alarms.current())
         assertEquals(LocalTime.of(8, 15), state.alarm.time)
         assertEquals(state.alarm, scheduler.scheduled)
@@ -89,10 +96,10 @@ class AlarmLifecycleTest {
         dismissWithCode("3017620422003")
 
         time.advance(Duration.ofMinutes(10))
-        assertIs<SetAlarmResult.Locked>(setAlarm(LocalTime.of(7, 20), emptySet()))
+        assertIs<SetAlarmResult.Locked>(setAlarm(LocalTime.of(7, 20)))
 
         time.advance(Duration.ofMinutes(21))
-        assertIs<SetAlarmResult.Scheduled>(setAlarm(LocalTime.of(7, 45), emptySet()))
+        assertIs<SetAlarmResult.Scheduled>(setAlarm(LocalTime.of(7, 45)))
     }
 
     @Test
@@ -114,14 +121,12 @@ class AlarmLifecycleTest {
     }
 
     @Test
-    fun `repeating alarm moves to next occurrence after dismissal`() = runTest {
-        setAlarm(LocalTime.of(7, 0), setOf(DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY))
-        time.instant = ZonedDateTime.of(2026, 10, 14, 7, 0, 0, 0, zone).toInstant()
-        startRinging()
+    fun `alarm turns off after dismissal and keeps its time`() = runTest {
+        ringAt7()
         dismissWithCode("3017620422003")
-
-        val next = assertIs<AlarmState.Scheduled>(alarms.current()).alarm
-        assertEquals(ZonedDateTime.of(2026, 10, 16, 7, 0, 0, 0, zone).toInstant(), next.triggerAt)
+        assertEquals(AlarmState.None, alarms.current())
+        assertNull(scheduler.scheduled)
+        assertEquals(LocalTime.of(7, 0), alarms.lastTime.value)
     }
 
     @Test
@@ -131,7 +136,11 @@ class AlarmLifecycleTest {
         val incomplete = challenge.start()
         assertEquals(DismissResult.WrongCode, dismissWithRescue(incomplete))
 
-        val complete = incomplete.copy(solved = incomplete.required)
+        // The copied text alone isn't enough: the calculation is still pending.
+        val calc = challenge.submitText(incomplete, incomplete.text)
+        assertEquals(DismissResult.WrongCode, dismissWithRescue(calc))
+
+        val complete = assertIs<RescueAnswer.Completed>(challenge.answer(calc, calc.problem.answer)).progress
         assertEquals(DismissResult.Dismissed, dismissWithRescue(complete))
         assertEquals(AlarmState.None, alarms.current())
     }
@@ -145,7 +154,7 @@ class AlarmLifecycleTest {
 
     @Test
     fun `alarm missed while phone was off rings on boot`() = runTest {
-        setAlarm(LocalTime.of(7, 0), emptySet())
+        setAlarm(LocalTime.of(7, 0))
         time.instant = ZonedDateTime.of(2026, 10, 14, 7, 40, 0, 0, zone).toInstant()
         restore()
         assertEquals(1, scheduler.firedNow)
@@ -153,8 +162,79 @@ class AlarmLifecycleTest {
 
     @Test
     fun `early stale fire is rescheduled instead of ringing`() = runTest {
-        setAlarm(LocalTime.of(7, 0), emptySet())
+        setAlarm(LocalTime.of(7, 0))
         assertNull(startRinging())
         assertIs<AlarmState.Scheduled>(alarms.current())
+    }
+
+    @Test
+    fun `dismissal records how long the alarm rang`() = runTest {
+        ringAt7()
+        time.advance(Duration.ofSeconds(134))
+        assertEquals(DismissResult.WrongCode, dismissWithCode("nope"))
+        assertTrue(history.records.value.isEmpty())
+
+        dismissWithCode("3017620422003")
+        val record = history.records.value.single()
+        assertEquals(Duration.ofSeconds(134), record.duration)
+        assertEquals(LocalTime.of(7, 0), record.alarmTime)
+        assertEquals(DismissMethod.Code, record.method)
+    }
+
+    @Test
+    fun `rescue dismissal is recorded as such`() = runTest {
+        ringAt7()
+        time.advance(Duration.ofMinutes(4))
+        val progress = RescueChallenge(Random(1)).start()
+        dismissWithRescue(progress.copy(step = RescueStep.Done))
+        assertEquals(DismissMethod.Rescue, history.records.value.single().method)
+    }
+
+    @Test
+    fun `stats average the last mornings and keep the best`() = runTest {
+        val stats = ObserveWakeUpStatsUseCase(history)
+        assertNull(stats().first().average)
+
+        // 8 mornings, re-enabled each evening, stopped in 1 to 8 minutes; newest is 8 min.
+        for (minutes in 1L..8L) {
+            time.advance(Duration.ofHours(12))
+            setAlarm(LocalTime.of(7, 0))
+            time.instant = (alarms.current() as AlarmState.Scheduled).alarm.triggerAt
+            startRinging()
+            time.advance(Duration.ofMinutes(minutes))
+            dismissWithCode("3017620422003")
+        }
+
+        val result = stats().first()
+        assertEquals(8, result.records.size)
+        assertEquals(Duration.ofMinutes(8), result.last?.duration)
+        // Last 7: 2..8 min, mean 5 min.
+        assertEquals(Duration.ofMinutes(5), result.average)
+        assertEquals(Duration.ofMinutes(1), result.best)
+        assertEquals(0, result.rescueCount)
+    }
+
+    @Test
+    fun `disabling keeps the time and enabling brings it back`() = runTest {
+        assertNull(enable())
+        setAlarm(LocalTime.of(6, 45))
+        assertTrue(cancel())
+        assertEquals(AlarmState.None, alarms.current())
+        assertNull(scheduler.scheduled)
+        assertEquals(LocalTime.of(6, 45), alarms.lastTime.value)
+
+        val result = assertIs<SetAlarmResult.Scheduled>(enable())
+        assertEquals(LocalTime.of(6, 45), result.alarm.time)
+        assertEquals(result.alarm, scheduler.scheduled)
+    }
+
+    @Test
+    fun `the lock blocks re-enabling right after waking up`() = runTest {
+        ringAt7()
+        dismissWithCode("3017620422003")
+
+        assertIs<SetAlarmResult.Locked>(enable())
+        time.advance(Duration.ofMinutes(31))
+        assertIs<SetAlarmResult.Scheduled>(enable())
     }
 }

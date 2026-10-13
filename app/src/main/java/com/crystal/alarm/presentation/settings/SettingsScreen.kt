@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -37,7 +38,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.crystal.alarm.BuildConfig
 import com.crystal.alarm.R
 import com.crystal.alarm.domain.model.Settings
-import com.crystal.alarm.domain.rescue.RescueChallenge
 import com.crystal.alarm.presentation.components.CrystalCard
 import com.crystal.alarm.presentation.components.InfoRow
 import com.crystal.alarm.presentation.components.PermissionsCard
@@ -46,13 +46,16 @@ import com.crystal.alarm.presentation.components.SectionLabel
 import com.crystal.alarm.presentation.format.AlarmFormat
 import com.crystal.alarm.presentation.theme.CrystalColors
 import com.crystal.alarm.presentation.theme.CrystalType
+import java.time.Duration
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
     onRegisterCode: () -> Unit,
     onOpenSound: () -> Unit,
+    onOpenHistory: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -108,10 +111,25 @@ fun SettingsScreen(
             LockCard(settings.lockMinutes, state, viewModel::onLockMinutesChange)
 
             Spacer(Modifier.height(28.dp))
+            SectionLabel(stringResource(R.string.settings_section_history))
+            CrystalCard(onClick = onOpenHistory) {
+                InfoRow(
+                    icon = painterResource(R.drawable.ic_stat_alarm),
+                    title = stringResource(R.string.history_title),
+                    subtitle = stringResource(R.string.settings_history_subtitle),
+                    trailing = { ChevronIcon() },
+                )
+            }
+
+            Spacer(Modifier.height(28.dp))
+            SectionLabel(stringResource(R.string.settings_section_sleep))
+            SleepGoalCard(settings.sleepGoalMinutes, viewModel::onSleepGoalChange)
+
+            Spacer(Modifier.height(28.dp))
             SectionLabel(stringResource(R.string.settings_section_rescue))
             CrystalCard {
                 Text(
-                    stringResource(R.string.settings_rescue_text, RescueChallenge.REQUIRED_ANSWERS),
+                    stringResource(R.string.settings_rescue_text),
                     style = CrystalType.Body,
                     color = CrystalColors.TextMuted,
                 )
@@ -144,15 +162,18 @@ private fun SoundCard(settings: Settings, ringtoneName: String?, onOpenSound: ()
             icon = rememberVectorPainter(Icons.Rounded.Notifications),
             title = ringtoneName ?: stringResource(R.string.sound_title),
             subtitle = details,
-            trailing = {
-                Icon(
-                    rememberVectorPainter(Icons.AutoMirrored.Rounded.KeyboardArrowRight),
-                    contentDescription = null,
-                    tint = CrystalColors.TextMuted,
-                )
-            },
+            trailing = { ChevronIcon() },
         )
     }
+}
+
+@Composable
+private fun ChevronIcon() {
+    Icon(
+        rememberVectorPainter(Icons.AutoMirrored.Rounded.KeyboardArrowRight),
+        contentDescription = null,
+        tint = CrystalColors.TextMuted,
+    )
 }
 
 @Composable
@@ -200,5 +221,38 @@ private fun LockCard(minutes: Int, state: SettingsUiState, onChange: (Int) -> Un
         } else {
             Text(stringResource(R.string.settings_lock_text), style = CrystalType.Caption, color = CrystalColors.TextMuted)
         }
+    }
+}
+
+@Composable
+private fun SleepGoalCard(minutes: Int, onChange: (Int) -> Unit) {
+    val res = LocalResources.current
+    var sliderValue by remember(minutes) { mutableFloatStateOf(minutes.toFloat()) }
+    val steps = (Settings.MAX_SLEEP_GOAL_MINUTES - Settings.MIN_SLEEP_GOAL_MINUTES) / Settings.SLEEP_GOAL_STEP_MINUTES - 1
+
+    CrystalCard {
+        Text(
+            text = AlarmFormat.shortDuration(res, Duration.ofMinutes(sliderValue.roundToLong())),
+            style = CrystalType.Display,
+            color = CrystalColors.Text,
+        )
+        Spacer(Modifier.height(8.dp))
+        Slider(
+            value = sliderValue,
+            onValueChange = { sliderValue = it },
+            onValueChangeFinished = { onChange(sliderValue.roundToInt()) },
+            valueRange = Settings.MIN_SLEEP_GOAL_MINUTES.toFloat()..Settings.MAX_SLEEP_GOAL_MINUTES.toFloat(),
+            steps = steps,
+            colors = SliderDefaults.colors(
+                thumbColor = CrystalColors.Text,
+                activeTrackColor = CrystalColors.Accent,
+                inactiveTrackColor = CrystalColors.SurfaceHigh,
+                activeTickColor = CrystalColors.Accent,
+                inactiveTickColor = CrystalColors.SurfaceHigh,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(stringResource(R.string.settings_sleep_text), style = CrystalType.Caption, color = CrystalColors.TextMuted)
     }
 }

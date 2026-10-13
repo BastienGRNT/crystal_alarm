@@ -44,7 +44,9 @@ class AlarmRingingService : LifecycleService() {
             ringingJob = lifecycleScope.launch {
                 if (startRinging() != null) {
                     soundPlayer.start(lifecycleScope, settingsRepository.current().sound)
+                    val keeper = launch { RingingScreenKeeper(this@AlarmRingingService).keepInFront() }
                     alarmRepository.state.first { it !is AlarmState.Ringing }
+                    keeper.cancel()
                 }
                 shutdown()
             }

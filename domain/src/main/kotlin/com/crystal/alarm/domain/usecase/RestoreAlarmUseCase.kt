@@ -29,14 +29,14 @@ class RestoreAlarmUseCase @Inject constructor(
                 val missed = !alarm.triggerAt.isAfter(now)
                 when {
                     missed && Duration.between(alarm.triggerAt, now) <= MISSED_GRACE -> scheduler.fireNow()
-                    missed && !alarm.isRepeating -> {
+                    missed -> {
                         alarmRepository.clear()
                         scheduler.cancel()
                     }
                     else -> {
                         // Wall-clock semantics: 07:00 stays 07:00 after a time zone change.
                         val next = alarm.copy(
-                            triggerAt = computeNextTrigger(alarm.time, alarm.repeatDays, now, timeSource.zone()),
+                            triggerAt = computeNextTrigger(alarm.time, now, timeSource.zone()),
                         )
                         alarmRepository.schedule(next)
                         scheduler.schedule(next)
